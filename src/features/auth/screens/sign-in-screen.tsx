@@ -12,7 +12,7 @@ import { authClient } from "@/lib/auth-client";
 
 export function SignInScreenView() {
   const router = useRouter();
-  const [email, setEmail] = useState("jane@example.com");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);

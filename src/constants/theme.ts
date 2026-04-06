@@ -31,6 +31,7 @@ export const theme = {
     ring: "rgba(83, 167, 161, 0.1)",
     text: palette.ink,
     textMuted: palette.slate,
+    textPlaceholder: "#98A9B1",
     border: "#D8E6E3",
     success: palette.green500,
     danger: palette.red500,

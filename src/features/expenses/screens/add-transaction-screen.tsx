@@ -1,4 +1,7 @@
 import { Feather } from "@expo/vector-icons";
+import DateTimePicker, {
+  type DateTimePickerEvent,
+} from "@react-native-community/datetimepicker";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
@@ -26,8 +29,12 @@ import { clearExpensesState } from "@/store/slices/expenses-slice";
 
 type TransactionType = "expense" | "income";
 
-function getTodayString() {
-  return new Date().toISOString().slice(0, 10);
+function formatDateString(value: Date) {
+  const year = value.getFullYear();
+  const month = `${value.getMonth() + 1}`.padStart(2, "0");
+  const day = `${value.getDate()}`.padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
 }
 
 function getCurrencySymbol(currencyCode: string) {
@@ -72,7 +79,9 @@ export function AddTransactionScreenView() {
   const [title, setTitle] = useState("");
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState("");
-  const [date, setDate] = useState(getTodayString());
+  const [date, setDate] = useState("");
+  const [selectedDate, setSelectedDate] = useState(() => new Date());
+  const [isDatePickerVisible, setIsDatePickerVisible] = useState(false);
   const [notes, setNotes] = useState("");
   const [type, setType] = useState<TransactionType>("expense");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -86,6 +95,27 @@ export function AddTransactionScreenView() {
     () => (type === "expense" ? "85.50" : "2450.00"),
     [type],
   );
+
+  const handleDateChange = (
+    event: DateTimePickerEvent,
+    nextDate?: Date,
+  ) => {
+    if (Platform.OS === "android") {
+      setIsDatePickerVisible(false);
+    }
+
+    if (event.type === "dismissed" || !nextDate) {
+      return;
+    }
+
+    setSelectedDate(nextDate);
+    setDate(formatDateString(nextDate));
+    setErrorMessage(null);
+  };
+
+  const openDatePicker = () => {
+    setIsDatePickerVisible(true);
+  };
 
   const handleSubmit = async () => {
     if (isSubmitting) {
@@ -111,8 +141,8 @@ export function AddTransactionScreenView() {
       return;
     }
 
-    if (Number.isNaN(new Date(date).getTime())) {
-      setErrorMessage("Date must use the YYYY-MM-DD format.");
+    if (!date.trim()) {
+      setErrorMessage("Please select a date.");
       return;
     }
 
@@ -205,7 +235,7 @@ export function AddTransactionScreenView() {
                       value={title}
                       onChangeText={setTitle}
                       placeholder="Groceries"
-                      placeholderTextColor={colors.textMuted}
+                      placeholderTextColor={colors.textPlaceholder}
                       style={styles.primaryInput}
                     />
                   </View>
@@ -217,24 +247,50 @@ export function AddTransactionScreenView() {
                       value={amount}
                       onChangeText={setAmount}
                       placeholder={amountPlaceholder}
-                      placeholderTextColor={colors.textMuted}
+                      placeholderTextColor={colors.textPlaceholder}
                       keyboardType="decimal-pad"
                       style={styles.amountInput}
                     />
                   </View>
 
                   <FieldLabel label="Date" />
-                  <View style={styles.fieldShell}>
-                    <TextInput
-                      value={date}
-                      onChangeText={setDate}
-                      placeholder="YYYY-MM-DD"
-                      placeholderTextColor={colors.textMuted}
-                      autoCapitalize="none"
-                      style={styles.primaryInput}
-                    />
+                  <Pressable onPress={openDatePicker} style={styles.fieldShell}>
+                    <Text
+                      style={[
+                        styles.dateValue,
+                        !date ? styles.datePlaceholder : null,
+                      ]}
+                    >
+                      {date || "Select a date"}
+                    </Text>
                     <Feather name="calendar" size={rs(18)} color="#A9B4B7" />
-                  </View>
+                  </Pressable>
+
+                  {isDatePickerVisible ? (
+                    Platform.OS === "ios" ? (
+                      <View style={styles.datePickerCard}>
+                        <View style={styles.datePickerHeader}>
+                          <Text style={styles.datePickerTitle}>Select date</Text>
+                          <Pressable onPress={() => setIsDatePickerVisible(false)}>
+                            <Text style={styles.datePickerDone}>Done</Text>
+                          </Pressable>
+                        </View>
+                        <DateTimePicker
+                          value={selectedDate}
+                          mode="date"
+                          display="inline"
+                          onChange={handleDateChange}
+                        />
+                      </View>
+                    ) : (
+                      <DateTimePicker
+                        value={selectedDate}
+                        mode="date"
+                        display="default"
+                        onChange={handleDateChange}
+                      />
+                    )
+                  ) : null}
 
                   <FieldLabel label="Category" />
                   <View style={styles.fieldShell}>
@@ -242,7 +298,7 @@ export function AddTransactionScreenView() {
                       value={category}
                       onChangeText={setCategory}
                       placeholder={type === "expense" ? "Food" : "Salary"}
-                      placeholderTextColor={colors.textMuted}
+                      placeholderTextColor={colors.textPlaceholder}
                       style={styles.primaryInput}
                     />
                   </View>
@@ -253,7 +309,7 @@ export function AddTransactionScreenView() {
                       value={notes}
                       onChangeText={setNotes}
                       placeholder="Optional note"
-                      placeholderTextColor={colors.textMuted}
+                      placeholderTextColor={colors.textPlaceholder}
                       multiline
                       numberOfLines={4}
                       style={styles.notesInput}
@@ -430,6 +486,46 @@ const styles = StyleSheet.create({
     lineHeight: rs(20),
     fontWeight: "500",
     color: colors.text,
+  },
+  dateValue: {
+    flex: 1,
+    fontSize: rs(15),
+    lineHeight: rs(20),
+    fontWeight: "500",
+    color: colors.text,
+  },
+  datePlaceholder: {
+    color: colors.textPlaceholder,
+  },
+  datePickerCard: {
+    marginTop: -spacing.sm,
+    marginBottom: spacing.lg,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.sm,
+    paddingTop: spacing.sm,
+    overflow: "hidden",
+  },
+  datePickerHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.xs,
+    paddingBottom: spacing.xs,
+  },
+  datePickerTitle: {
+    fontSize: typography.caption,
+    lineHeight: typography.captionLineHeight,
+    fontWeight: "700",
+    color: colors.text,
+  },
+  datePickerDone: {
+    fontSize: typography.caption,
+    lineHeight: typography.captionLineHeight,
+    fontWeight: "700",
+    color: colors.primaryDark,
   },
   currencyPrefix: {
     fontSize: rs(15),

@@ -127,7 +127,7 @@ export function SearchScreenView() {
                 value={query}
                 onChangeText={setQuery}
                 placeholder="Search transactions"
-                placeholderTextColor={colors.textMuted}
+                placeholderTextColor={colors.textPlaceholder}
                 style={styles.searchInput}
               />
             </View>

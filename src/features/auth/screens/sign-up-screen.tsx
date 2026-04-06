@@ -40,8 +40,8 @@ type UpdateUserResponse = {
 
 export function SignUpScreenView() {
   const router = useRouter();
-  const [name, setName] = useState("Jane Doe");
-  const [email, setEmail] = useState("jane@example.com");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [selectedImage, setSelectedImage] = useState<ImagePickerAsset | null>(
     null,

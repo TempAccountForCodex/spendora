@@ -20,7 +20,7 @@ export function AppInput({ label, ...props }: AppInputProps) {
     <View style={styles.wrapper}>
       <Text style={styles.label}>{label}</Text>
       <TextInput
-        placeholderTextColor={colors.textMuted}
+        placeholderTextColor={colors.textPlaceholder}
         style={[styles.input, style]}
         {...inputProps}
       />
