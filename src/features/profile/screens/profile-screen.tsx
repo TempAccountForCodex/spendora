@@ -136,7 +136,7 @@ export function ProfileScreenView() {
                   )}
                 </View>
               </Pressable>
-              <Text style={styles.heroTitle}>{user?.name ?? "Spendora User"}</Text>
+              <Text style={styles.heroTitle}>{user?.name ?? "Spendoraa User"}</Text>
               <Text style={styles.heroSubtitle}>{handle}</Text>
               {/* <Text style={styles.heroHint}>
                 {isUpdatingImage ? "Updating photo..." : "Tap photo to update"}

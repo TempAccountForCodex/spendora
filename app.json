@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Spendora",
+    "name": "Spendoraa",
     "slug": "Spendora",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -52,7 +52,7 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Spendora accesses your photos so you can choose a profile picture.",
+          "photosPermission": "Spendoraa accesses your photos so you can choose a profile picture.",
           "cameraPermission": false,
           "microphonePermission": false
         }

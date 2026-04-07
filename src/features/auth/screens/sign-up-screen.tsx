@@ -213,7 +213,7 @@ export function SignUpScreenView() {
         </View>
       }
     >
-      <Text style={styles.title}>Join Spendora</Text>
+      <Text style={styles.title}>Join Spendoraa</Text>
 
       <View style={styles.form}>
         <AppInput
