@@ -181,7 +181,7 @@ export function HomeScreenView() {
               <View style={styles.greetingBlock}>
                 <Text style={styles.greeting}>{greeting}</Text>
                 <Text style={styles.userName} numberOfLines={1}>
-                  {user?.name ?? "Spendoraa User"}
+                  {user?.name ?? "Spendora User"}
                 </Text>
               </View>
             </View>
