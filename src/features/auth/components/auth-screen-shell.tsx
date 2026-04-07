@@ -11,6 +11,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { HeroScreen } from "@/components/layout/hero-screen";
 import { colors, radius, spacing, typography } from "@/constants/theme";
@@ -21,6 +22,7 @@ type AuthScreenShellProps = PropsWithChildren<{
   subtitle?: string;
   heroContent?: ReactNode;
   backHref?: Href;
+  heroMinHeight?: number;
 }>;
 
 export function AuthScreenShell({
@@ -28,9 +30,11 @@ export function AuthScreenShell({
   subtitle,
   heroContent,
   backHref,
+  heroMinHeight,
   children,
 }: AuthScreenShellProps) {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const hasHeaderCopy = Boolean(title || subtitle);
 
   return (
@@ -39,7 +43,7 @@ export function AuthScreenShell({
         <KeyboardAvoidingView
           style={styles.keyboardAvoiding}
           behavior={Platform.OS === "ios" ? "padding" : "height"}
-          keyboardVerticalOffset={0}
+          keyboardVerticalOffset={Platform.OS === "ios" ? insets.top : 0}
         >
           <ScrollView
             style={styles.scrollView}
@@ -47,7 +51,7 @@ export function AuthScreenShell({
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-            <View style={[styles.hero, { paddingTop: topInset + hp(1) }]}>
+            <View style={[styles.hero, { paddingTop: topInset + hp(1), minHeight: heroMinHeight ?? hp(38) }]}>
               {backHref ? (
                 <Pressable
                   onPress={() => router.push(backHref)}
@@ -108,7 +112,7 @@ const styles = StyleSheet.create({
   },
   hero: {
     position: "relative",
-    minHeight: hp(38),
+    // minHeight: hp(30),
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#EEF8F7",

@@ -1,7 +1,8 @@
 import { Feather } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -15,11 +16,8 @@ import {
 import { HeroScreen } from "@/components/layout/hero-screen";
 import { colors, gradients, radius, spacing, typography } from "@/constants/theme";
 import { useAuthSession } from "@/features/auth/lib/use-auth-session";
-import type {
-  ExpenseTransaction,
-  SearchTransactionsPayload,
-} from "@/features/expenses/types";
-import { appApiFetch } from "@/lib/app-api-client";
+import { listTransactions } from "@/features/expenses/lib/transactions-data";
+import type { ExpenseTransaction } from "@/features/expenses/types";
 import { formatCurrency, getUserCurrencyCode } from "@/lib/currency";
 import { hp, rs, wp } from "@/lib/responsive";
 
@@ -42,51 +40,55 @@ function formatDateLabel(dateValue: string) {
 export function SearchScreenView() {
   const router = useRouter();
   const { user } = useAuthSession();
-  const currencyCode = getUserCurrencyCode(
-    (user as { currency?: string | null } | null)?.currency,
-  );
+  const currencyCode = getUserCurrencyCode(user?.currency);
   const [query, setQuery] = useState("");
   const [transactions, setTransactions] = useState<ExpenseTransaction[]>([]);
   const [status, setStatus] = useState<LoadState>("idle");
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let isCancelled = false;
+  const loadTransactions = useCallback(async () => {
+    setStatus("loading");
+    setError(null);
 
-    const timeoutId = setTimeout(() => {
-      const loadResults = async () => {
-        setStatus("loading");
-        setError(null);
+    try {
+      const nextTransactions = await listTransactions();
+      setTransactions(nextTransactions);
+      setStatus("succeeded");
+    } catch (loadError) {
+      setError(
+        loadError instanceof Error
+          ? loadError.message
+          : "Unable to search transactions.",
+      );
+      setStatus("failed");
+    }
+  }, []);
 
-        try {
-          const payload = await appApiFetch<SearchTransactionsPayload>(
-            `/api/transactions?query=${encodeURIComponent(query.trim())}`,
-          );
+  useFocusEffect(
+    useCallback(() => {
+      void loadTransactions();
+    }, [loadTransactions]),
+  );
 
-          if (!isCancelled) {
-            setTransactions(payload.transactions);
-            setStatus("succeeded");
-          }
-        } catch (loadError) {
-          if (!isCancelled) {
-            setError(
-              loadError instanceof Error
-                ? loadError.message
-                : "Unable to search transactions.",
-            );
-            setStatus("failed");
-          }
-        }
-      };
+  const filteredTransactions = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
 
-      void loadResults();
-    }, 220);
+    if (!normalizedQuery) {
+      return transactions;
+    }
 
-    return () => {
-      isCancelled = true;
-      clearTimeout(timeoutId);
-    };
-  }, [query]);
+    return transactions.filter((transaction) => {
+      const haystacks = [
+        transaction.title,
+        transaction.category,
+        transaction.notes ?? "",
+      ];
+
+      return haystacks.some((value) =>
+        value.toLowerCase().includes(normalizedQuery),
+      );
+    });
+  }, [query, transactions]);
 
   const resultsLabel = useMemo(() => {
     if (!query.trim()) {
@@ -149,13 +151,13 @@ export function SearchScreenView() {
               </View>
             ) : null}
 
-            {status === "succeeded" && transactions.length === 0 ? (
+            {status === "succeeded" && filteredTransactions.length === 0 ? (
               <View style={styles.stateCard}>
                 <Text style={styles.stateText}>No matching transactions found.</Text>
               </View>
             ) : null}
 
-            {transactions.map((transaction) => (
+            {filteredTransactions.map((transaction) => (
               <Pressable
                 key={transaction.id}
                 style={styles.resultCard}

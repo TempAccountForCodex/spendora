@@ -13,11 +13,10 @@ import {
 import { HeroScreen } from "@/components/layout/hero-screen";
 import { colors, gradients, radius, spacing, typography } from "@/constants/theme";
 import { useAuthSession } from "@/features/auth/lib/use-auth-session";
+import { fetchTransactionById } from "@/features/expenses/lib/transactions-data";
 import type {
   ExpenseTransaction,
-  TransactionDetailPayload,
 } from "@/features/expenses/types";
-import { appApiFetch } from "@/lib/app-api-client";
 import { formatCurrency, getUserCurrencyCode } from "@/lib/currency";
 import { hp, rs, wp } from "@/lib/responsive";
 
@@ -53,9 +52,7 @@ export function TransactionDetailScreenView() {
   const { id } = useLocalSearchParams<{ id?: string | string[] }>();
   const transactionId = Array.isArray(id) ? id[0] : id;
   const { user } = useAuthSession();
-  const currencyCode = getUserCurrencyCode(
-    (user as { currency?: string | null } | null)?.currency,
-  );
+  const currencyCode = getUserCurrencyCode(user?.currency);
   const [transaction, setTransaction] = useState<ExpenseTransaction | null>(null);
   const [status, setStatus] = useState<LoadState>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -74,13 +71,16 @@ export function TransactionDetailScreenView() {
       setError(null);
 
       try {
-        const payload = await appApiFetch<TransactionDetailPayload>(
-          `/api/transactions?id=${encodeURIComponent(transactionId)}`,
-        );
+        const payload = await fetchTransactionById(transactionId);
 
         if (!isCancelled) {
-          setTransaction(payload.transaction);
-          setStatus("succeeded");
+          if (payload) {
+            setTransaction(payload);
+            setStatus("succeeded");
+          } else {
+            setError("Transaction not found.");
+            setStatus("failed");
+          }
         }
       } catch (loadError) {
         if (!isCancelled) {

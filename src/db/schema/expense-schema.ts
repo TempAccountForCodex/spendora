@@ -1,4 +1,4 @@
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
   index,
   numeric,
@@ -9,8 +9,11 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import { authUid, authenticatedRole, crudPolicy } from "drizzle-orm/neon";
 
-import { user } from "@/db/schema/auth-schema";
+function isDefined<T>(value: T | undefined): value is T {
+  return value !== undefined;
+}
 
 export const transactionTypeEnum = pgEnum("transaction_type", [
   "expense",
@@ -21,9 +24,7 @@ export const categories = pgTable(
   "categories",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    userId: text("user_id")
-      .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull().default(sql`(auth.user_id())`),
     name: text("name").notNull(),
     icon: text("icon"),
     color: text("color"),
@@ -36,16 +37,19 @@ export const categories = pgTable(
   (table) => [
     index("categories_user_id_idx").on(table.userId),
     uniqueIndex("categories_user_id_name_idx").on(table.userId, table.name),
+    ...crudPolicy({
+      role: authenticatedRole,
+      read: authUid(table.userId),
+      modify: authUid(table.userId),
+    }).filter(isDefined),
   ],
-);
+).enableRLS();
 
 export const transactions = pgTable(
   "transactions",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    userId: text("user_id")
-      .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull().default(sql`(auth.user_id())`),
     categoryId: uuid("category_id").references(() => categories.id, {
       onDelete: "set null",
     }),
@@ -68,22 +72,19 @@ export const transactions = pgTable(
       table.occurredAt,
     ),
     index("transactions_category_id_idx").on(table.categoryId),
+    ...crudPolicy({
+      role: authenticatedRole,
+      read: authUid(table.userId),
+      modify: authUid(table.userId),
+    }).filter(isDefined),
   ],
-);
+).enableRLS();
 
-export const categoriesRelations = relations(categories, ({ many, one }) => ({
-  user: one(user, {
-    fields: [categories.userId],
-    references: [user.id],
-  }),
+export const categoriesRelations = relations(categories, ({ many }) => ({
   transactions: many(transactions),
 }));
 
 export const transactionsRelations = relations(transactions, ({ one }) => ({
-  user: one(user, {
-    fields: [transactions.userId],
-    references: [user.id],
-  }),
   category: one(categories, {
     fields: [transactions.categoryId],
     references: [categories.id],

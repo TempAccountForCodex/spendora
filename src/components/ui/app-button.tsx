@@ -15,6 +15,7 @@ import {
 
 type AppButtonProps = {
   label: string;
+  hrefText?: string;
   onPress?: () => void;
   variant?: "primary" | "secondary" | "ghost" | "text" | "hero";
   icon?: ReactNode;
@@ -27,6 +28,7 @@ type AppButtonProps = {
 
 export function AppButton({
   label,
+  hrefText,
   onPress,
   variant = "primary",
   icon,
@@ -55,6 +57,7 @@ export function AppButton({
         ]}
       >
         {label}
+        {hrefText ? <Text style={styles.hrefText}>{hrefText}</Text> : null}
       </Text>
     </>
   );
@@ -203,6 +206,9 @@ const styles = StyleSheet.create({
     fontSize: typography.body,
     fontWeight: "700",
   },
+  hrefText: {
+    color: colors.primaryDark,
+  },
   primaryLabel: {
     color: colors.white,
   },
@@ -215,7 +221,7 @@ const styles = StyleSheet.create({
   textLabel: {
     fontSize: typography.caption,
     lineHeight: typography.captionLineHeight,
-    color: colors.primaryDark,
+    color: colors.text,
   },
   heroLabel: {
     color: colors.white,

@@ -21,9 +21,7 @@ export function GetStartedScreenView() {
 
   useEffect(() => {
     if (!isPending && isSignedIn) {
-      router.replace(
-        getAuthenticatedRoute(user as { currency?: string | null } | null),
-      );
+      router.replace(getAuthenticatedRoute(user));
     }
   }, [isPending, isSignedIn, router, user]);
 
@@ -71,7 +69,8 @@ export function GetStartedScreenView() {
             />
 
             <AppButton
-              label="Already Have Account? Log In"
+              label="Already Have Account? "
+              hrefText="Log In"
               variant="text"
               onPress={() => router.push("/sign-in")}
             />

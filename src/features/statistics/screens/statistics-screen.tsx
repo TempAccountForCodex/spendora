@@ -11,19 +11,67 @@ import {
 
 import { HeroScreen } from "@/components/layout/hero-screen";
 import { colors, gradients, radius, spacing, typography } from "@/constants/theme";
+import { listTransactions } from "@/features/expenses/lib/transactions-data";
 import type { StatisticsPayload } from "@/features/expenses/types";
-import { appApiFetch } from "@/lib/app-api-client";
 import { formatCurrency, getUserCurrencyCode } from "@/lib/currency";
 import { useAuthSession } from "@/features/auth/lib/use-auth-session";
 import { hp, rs } from "@/lib/responsive";
 
 type LoadState = "idle" | "loading" | "succeeded" | "failed";
 
+function buildStatisticsPayload(
+  transactions: Awaited<ReturnType<typeof listTransactions>>,
+): StatisticsPayload {
+  const now = new Date();
+  const months = Array.from({ length: 6 }, (_, index) => {
+    const date = new Date(now.getFullYear(), now.getMonth() - (5 - index), 1);
+    const key = `${date.getFullYear()}-${date.getMonth() + 1}`;
+
+    return {
+      key,
+      label: date.toLocaleDateString(undefined, { month: "short" }),
+      income: 0,
+      expense: 0,
+    };
+  });
+
+  const monthMap = new Map(months.map((month) => [month.key, month]));
+
+  for (const transaction of transactions) {
+    const date = new Date(transaction.date);
+
+    if (Number.isNaN(date.getTime())) {
+      continue;
+    }
+
+    const key = `${date.getFullYear()}-${date.getMonth() + 1}`;
+    const month = monthMap.get(key);
+
+    if (!month) {
+      continue;
+    }
+
+    if (transaction.type === "income") {
+      month.income += transaction.amount;
+    } else {
+      month.expense += transaction.amount;
+    }
+  }
+
+  return {
+    months,
+    incomeTotal: transactions
+      .filter((transaction) => transaction.type === "income")
+      .reduce((total, transaction) => total + transaction.amount, 0),
+    expenseTotal: transactions
+      .filter((transaction) => transaction.type === "expense")
+      .reduce((total, transaction) => total + transaction.amount, 0),
+  };
+}
+
 export function StatisticsScreenView() {
   const { user } = useAuthSession();
-  const currencyCode = getUserCurrencyCode(
-    (user as { currency?: string | null } | null)?.currency,
-  );
+  const currencyCode = getUserCurrencyCode(user?.currency);
   const [data, setData] = useState<StatisticsPayload | null>(null);
   const [status, setStatus] = useState<LoadState>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -33,10 +81,8 @@ export function StatisticsScreenView() {
     setError(null);
 
     try {
-      const payload = await appApiFetch<StatisticsPayload>(
-        "/api/dashboard?scope=statistics",
-      );
-      setData(payload);
+      const transactions = await listTransactions();
+      setData(buildStatisticsPayload(transactions));
       setStatus("succeeded");
     } catch (loadError) {
       setError(

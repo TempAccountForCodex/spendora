@@ -16,10 +16,11 @@ import { AppButton } from "@/components/ui/app-button";
 import { AppInput } from "@/components/ui/app-input";
 import { colors, radius, spacing, typography } from "@/constants/theme";
 import { AuthScreenShell } from "@/features/auth/components/auth-screen-shell";
+import { ensureAuthProfile } from "@/features/auth/lib/auth-profile";
 import { authClient } from "@/lib/auth-client";
 import { uploadImageToCloudinary } from "@/lib/cloudinary";
 import { ensureImageLibraryPermission } from "@/lib/image-library-permission";
-import { rs } from "@/lib/responsive";
+import { hp, rs } from "@/lib/responsive";
 
 type AuthResponseError = {
   message?: string;
@@ -145,6 +146,21 @@ export function SignUpScreenView() {
         }
       }
 
+      const latestSession = (await authClient.getSession()) as {
+        data?: {
+          user?: {
+            id: string;
+          } | null;
+        } | null;
+      };
+
+      const signedInUser = latestSession.data?.user ?? null;
+
+      if (!signedInUser) {
+        throw new Error("Account created, but the session could not be restored.");
+      }
+
+      await ensureAuthProfile(signedInUser, { force: true });
       router.replace("/select-currency");
     } catch (error) {
       setErrorMessage(
@@ -159,6 +175,7 @@ export function SignUpScreenView() {
   return (
     <AuthScreenShell
       backHref="/get-started"
+      heroMinHeight={hp(40)}
       heroContent={
         <View style={styles.heroAvatarWrap}>
           <Pressable onPress={handlePickImage} style={styles.heroAvatarPicker}>
@@ -233,7 +250,8 @@ export function SignUpScreenView() {
           pill
         />
         <AppButton
-          label="Already have an account? Log In"
+          label="Already have an account? "
+          hrefText="Log In"
           variant="text"
           onPress={() => router.push("/sign-in")}
         />

@@ -16,9 +16,7 @@ export function SplashScreenView() {
   const hasAnimated = useRef(false);
   const logoOpacity = useRef(new Animated.Value(0)).current;
   const logoScale = useRef(new Animated.Value(0.7)).current;
-  const nextRoute: Href = isSignedIn
-    ? getAuthenticatedRoute(user as { currency?: string | null } | null)
-    : "/get-started";
+  const nextRoute: Href = isSignedIn ? getAuthenticatedRoute(user) : "/get-started";
 
   useEffect(() => {
     if (isPending || hasAnimated.current) {

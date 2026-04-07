@@ -18,10 +18,10 @@ import {
 } from "@/constants/currencies";
 import { colors, radius, spacing, typography } from "@/constants/theme";
 import { AuthScreenShell } from "@/features/auth/components/auth-screen-shell";
+import { saveAuthProfileCurrency } from "@/features/auth/lib/auth-profile";
 import { getAuthenticatedRoute } from "@/features/auth/lib/get-authenticated-route";
 import { useAuthSession } from "@/features/auth/lib/use-auth-session";
-import { authClient } from "@/lib/auth-client";
-import { rs } from "@/lib/responsive";
+import { hp, rs } from "@/lib/responsive";
 
 type CurrencyOptionCardProps = {
   code: SupportedCurrencyCode;
@@ -157,9 +157,7 @@ export function SelectCurrencyScreenView() {
     }
 
     if (!isPending && isSignedIn) {
-      const nextRoute = getAuthenticatedRoute(
-        user as { currency?: string | null } | null,
-      );
+      const nextRoute = getAuthenticatedRoute(user);
 
       if (nextRoute === "/(tabs)/home") {
         router.replace("/(tabs)/home");
@@ -176,28 +174,13 @@ export function SelectCurrencyScreenView() {
     setErrorMessage(null);
 
     try {
-      const response = await (
-        authClient as unknown as {
-          updateUser: (input: {
-            currency: SupportedCurrencyCode;
-          }) => Promise<{
-            error?: {
-              message?: string;
-            } | null;
-          }>;
-        }
-      ).updateUser({
-        currency,
-      });
-
-      if (response.error) {
-        setErrorMessage(
-          response.error.message ?? "Unable to save your currency.",
-        );
+      if (!user?.id) {
+        setErrorMessage("Your session is unavailable right now.");
         setIsSubmitting(false);
         return;
       }
 
+      await saveAuthProfileCurrency(user.id, currency);
       await refetch();
       router.replace("/(tabs)/home");
     } catch (error) {
@@ -216,6 +199,7 @@ export function SelectCurrencyScreenView() {
     <AuthScreenShell
       title={firstName ? `Welcome, ${firstName}` : "Welcome"}
       subtitle="Pick your currency."
+      heroMinHeight={hp(28)}
       heroContent={
         <Image
           source={require("../../../../assets/images/app_icon.png")}

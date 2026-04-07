@@ -1,14 +1,16 @@
 import { Image } from "expo-image";
-import { useState } from "react";
 import { useRouter } from "expo-router";
+import { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
-import { AuthScreenShell } from "@/features/auth/components/auth-screen-shell";
 import { AppButton } from "@/components/ui/app-button";
 import { AppInput } from "@/components/ui/app-input";
 import { colors, spacing, typography } from "@/constants/theme";
+import { AuthScreenShell } from "@/features/auth/components/auth-screen-shell";
+import { ensureAuthProfile, getProfileCurrencyValue } from "@/features/auth/lib/auth-profile";
 import { getAuthenticatedRoute } from "@/features/auth/lib/get-authenticated-route";
 import { authClient } from "@/lib/auth-client";
+import { hp } from "@/lib/responsive";
 
 export function SignInScreenView() {
   const router = useRouter();
@@ -25,37 +27,54 @@ export function SignInScreenView() {
     setIsSubmitting(true);
     setErrorMessage(null);
 
-    const response = await authClient.signIn.email({
-      email,
-      password,
-      rememberMe: true,
-    });
+    try {
+      const response = await authClient.signIn.email({
+        email,
+        password,
+        rememberMe: true,
+      });
 
-    const { error } = response;
+      const { error } = response;
 
-    if (error) {
-      setErrorMessage(error.message ?? "Unable to sign in.");
-      setIsSubmitting(false);
-      return;
-    }
+      if (error) {
+        setErrorMessage(error.message ?? "Unable to sign in.");
+        setIsSubmitting(false);
+        return;
+      }
 
-    const signedInUser = (
-      response as {
+      const latestSession = (await authClient.getSession()) as {
         data?: {
           user?: {
-            currency?: string | null;
+            id: string;
           } | null;
         } | null;
-      }
-    ).data?.user;
+      };
 
-    router.replace(getAuthenticatedRoute(signedInUser ?? null));
+      const signedInUser = latestSession.data?.user ?? null;
+
+      if (!signedInUser) {
+        throw new Error("Signed in, but the session could not be restored.");
+      }
+
+      const profile = await ensureAuthProfile(signedInUser, { force: true });
+      router.replace(
+        getAuthenticatedRoute({
+          currency: getProfileCurrencyValue(profile),
+        }),
+      );
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "Unable to sign in.",
+      );
+      setIsSubmitting(false);
+    }
   };
 
   return (
     <AuthScreenShell
       title="Sign In"
       backHref="/get-started"
+      heroMinHeight={hp(40)}
       heroContent={
         <Image
           source={require("../../../../assets/images/app_icon.png")}
@@ -93,7 +112,8 @@ export function SignInScreenView() {
           pill
         />
         <AppButton
-          label="Don't have an account? Create one"
+          label="Don't have an account? "
+          hrefText="Create one"
           variant="text"
           onPress={() => router.push("/sign-up")}
         />

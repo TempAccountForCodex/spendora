@@ -106,9 +106,7 @@ export function HomeScreenView() {
   const incomeTotal = useAppSelector(selectIncomeTotal);
   const status = useAppSelector(selectExpensesStatus);
   const error = useAppSelector(selectExpensesError);
-  const currencyCode = getUserCurrencyCode(
-    (user as { currency?: string | null } | null)?.currency,
-  );
+  const currencyCode = getUserCurrencyCode(user?.currency);
   const totalBalance = incomeTotal - expenseTotal;
   const greeting = getGreeting();
   const filteredTransactions = useMemo(() => {
@@ -174,7 +172,7 @@ export function HomeScreenView() {
             <View style={styles.userRow}>
               <Pressable onPress={() => router.push("/(tabs)/profile")}>
                 <UserAvatar
-                  uri={(user as { image?: string | null } | null)?.image}
+                  uri={user?.image}
                   name={user?.name}
                   size={rs(54)}
                   style={styles.headerAvatar}

@@ -15,13 +15,14 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { HeroScreen } from "@/components/layout/hero-screen";
 import { AppButton } from "@/components/ui/app-button";
 import { supportedCurrencies } from "@/constants/currencies";
 import { colors, gradients, radius, spacing, typography } from "@/constants/theme";
 import { useAuthSession } from "@/features/auth/lib/use-auth-session";
-import { appApiFetch } from "@/lib/app-api-client";
+import { createTransaction } from "@/features/expenses/lib/transactions-data";
 import { getUserCurrencyCode } from "@/lib/currency";
 import { hp, rs, wp } from "@/lib/responsive";
 import { useAppDispatch } from "@/store/hooks";
@@ -76,6 +77,7 @@ export function AddTransactionScreenView() {
   const router = useRouter();
   const dispatch = useAppDispatch();
   const { user } = useAuthSession();
+  const insets = useSafeAreaInsets();
   const [title, setTitle] = useState("");
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState("");
@@ -86,9 +88,7 @@ export function AddTransactionScreenView() {
   const [type, setType] = useState<TransactionType>("expense");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const currencyCode = getUserCurrencyCode(
-    (user as { currency?: string | null } | null)?.currency,
-  );
+  const currencyCode = getUserCurrencyCode(user?.currency);
   const currencySymbol = getCurrencySymbol(currencyCode);
 
   const amountPlaceholder = useMemo(
@@ -150,20 +150,13 @@ export function AddTransactionScreenView() {
     setErrorMessage(null);
 
     try {
-      await appApiFetch<{
-        transaction: {
-          id: string;
-        };
-      }>("/api/transactions", {
-        method: "POST",
-        body: {
-          title: normalizedTitle,
-          amount: parsedAmount,
-          category: normalizedCategory,
-          type,
-          date,
-          notes,
-        },
+      await createTransaction({
+        title: normalizedTitle,
+        amount: parsedAmount,
+        category: normalizedCategory,
+        type,
+        date,
+        notes,
       });
 
       dispatch(clearExpensesState());
@@ -181,11 +174,16 @@ export function AddTransactionScreenView() {
   return (
     <HeroScreen>
       {(topInset) => (
-        <View style={styles.screen}>
-          <LinearGradient
-            colors={gradients.splash}
-            style={[styles.hero, { paddingTop: topInset + spacing.sm }]}
-          >
+        <KeyboardAvoidingView
+          style={styles.keyboardAvoiding}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={Platform.OS === "ios" ? topInset : 0}
+        >
+          <View style={styles.screen}>
+            <LinearGradient
+              colors={gradients.splash}
+              style={[styles.hero, { paddingTop: topInset + spacing.sm }]}
+            >
             <View style={[styles.ring, styles.ringOne]} />
             <View style={[styles.ring, styles.ringTwo]} />
 
@@ -203,11 +201,7 @@ export function AddTransactionScreenView() {
             <View style={styles.curveCut} />
           </LinearGradient>
 
-          <KeyboardAvoidingView
-            style={styles.body}
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
-            keyboardVerticalOffset={0}
-          >
+          <View style={styles.body}>
             <View style={styles.bodyContent}>
               <View style={styles.formCard}>
                 <ScrollView
@@ -329,14 +323,18 @@ export function AddTransactionScreenView() {
                 </ScrollView>
               </View>
             </View>
-          </KeyboardAvoidingView>
+          </View>
         </View>
+        </KeyboardAvoidingView>
       )}
     </HeroScreen>
   );
 }
 
 const styles = StyleSheet.create({
+  keyboardAvoiding: {
+    flex: 1,
+  },
   screen: {
     flex: 1,
     backgroundColor: colors.white,

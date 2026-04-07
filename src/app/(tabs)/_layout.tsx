@@ -31,9 +31,7 @@ export default function TabsLayout() {
     return <Redirect href="/get-started" />;
   }
 
-  const nextRoute = getAuthenticatedRoute(
-    user as { currency?: string | null } | null,
-  );
+  const nextRoute = getAuthenticatedRoute(user);
 
   if (nextRoute !== "/(tabs)/home") {
     return <Redirect href={nextRoute} />;

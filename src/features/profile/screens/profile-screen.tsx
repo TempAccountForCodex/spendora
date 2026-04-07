@@ -9,6 +9,7 @@ import { UserAvatar } from "@/components/branding/user-avatar";
 import { HeroScreen } from "@/components/layout/hero-screen";
 import { AppButton } from "@/components/ui/app-button";
 import { colors, gradients, radius, spacing, typography } from "@/constants/theme";
+import { clearAuthProfileCache } from "@/features/auth/lib/auth-profile";
 import { useAuthSession } from "@/features/auth/lib/use-auth-session";
 import { authClient } from "@/lib/auth-client";
 import { uploadImageToCloudinary } from "@/lib/cloudinary";
@@ -32,15 +33,12 @@ export function ProfileScreenView() {
   const { user, refetch } = useAuthSession();
   const [isUpdatingImage, setIsUpdatingImage] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
-  const currencyCode = getUserCurrencyCode(
-    (user as { currency?: string | null } | null)?.currency,
-  );
-  const currencyLabel = getCurrencyLabel(
-    (user as { currency?: string | null } | null)?.currency,
-  );
+  const currencyCode = getUserCurrencyCode(user?.currency);
+  const currencyLabel = getCurrencyLabel(user?.currency);
   const handle = buildHandle(user?.name);
 
   const handleSignOut = async () => {
+    clearAuthProfileCache(user?.id);
     await authClient.signOut();
     dispatch(clearExpensesState());
     router.replace("/get-started");
@@ -124,7 +122,7 @@ export function ProfileScreenView() {
                 style={styles.avatarPressable}
               >
                 <UserAvatar
-                  uri={(user as { image?: string | null } | null)?.image}
+                  uri={user?.image}
                   name={user?.name}
                   size={rs(92)}
                   style={styles.heroAvatar}
