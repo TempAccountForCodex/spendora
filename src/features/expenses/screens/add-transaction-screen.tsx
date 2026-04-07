@@ -15,7 +15,6 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { HeroScreen } from "@/components/layout/hero-screen";
 import { AppButton } from "@/components/ui/app-button";
@@ -77,7 +76,6 @@ export function AddTransactionScreenView() {
   const router = useRouter();
   const dispatch = useAppDispatch();
   const { user } = useAuthSession();
-  const insets = useSafeAreaInsets();
   const [title, setTitle] = useState("");
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState("");

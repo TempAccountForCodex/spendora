@@ -5,8 +5,8 @@ import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  FlatList,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -118,7 +118,6 @@ export function HomeScreenView() {
       (transaction) => transaction.type === transactionFilter,
     );
   }, [transactionFilter, transactions]);
-  const visibleTransactions = filteredTransactions.slice(0, 4);
 
   const loadDashboard = useCallback(async () => {
     if (isDashboardRequestInFlight.current) {
@@ -218,105 +217,103 @@ export function HomeScreenView() {
           </View>
           </LinearGradient>
 
-          <ScrollView
+          <FlatList
             style={styles.body}
             contentContainerStyle={styles.bodyContent}
             showsVerticalScrollIndicator={false}
-          >
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Transactions History</Text>
+            data={status === "succeeded" ? filteredTransactions : []}
+            keyExtractor={(transaction) => transaction.id}
+            renderItem={({ item: transaction }) => (
+              <Pressable
+                style={styles.transactionRow}
+                onPress={() => router.push(`/transaction/${transaction.id}`)}
+              >
+                <View
+                  style={[
+                    styles.transactionBadge,
+                    { backgroundColor: getTransactionBadgeColor(transaction.title) },
+                  ]}
+                >
+                  <Text style={styles.transactionBadgeText}>
+                    {getTransactionInitial(transaction.title)}
+                  </Text>
+                </View>
 
-            <View style={styles.filterGroup}>
-              <TransactionFilterChip
-                label="All"
-                isActive={transactionFilter === "all"}
-                onPress={() => setTransactionFilter("all")}
-              />
-              <TransactionFilterChip
-                label="Income"
-                isActive={transactionFilter === "income"}
-                onPress={() => setTransactionFilter("income")}
-              />
-              <TransactionFilterChip
-                label="Expenses"
-                isActive={transactionFilter === "expense"}
-                onPress={() => setTransactionFilter("expense")}
-              />
-            </View>
-          </View>
+                <View style={styles.transactionInfo}>
+                  <Text style={styles.transactionTitle}>{transaction.title}</Text>
+                  <Text style={styles.transactionDate}>
+                    {formatTransactionDateLabel(transaction.date)}
+                  </Text>
+                </View>
 
-          {status === "loading" ? (
-            <View style={styles.stateCard}>
-              <ActivityIndicator color={colors.primaryDark} />
-              <Text style={styles.stateText}>Loading your dashboard...</Text>
-            </View>
-          ) : null}
-
-          {status === "failed" ? (
-            <View style={styles.stateCard}>
-              <Text style={styles.stateTitle}>Dashboard unavailable</Text>
-              <Text style={styles.stateText}>
-                {error ?? "Unable to load your transactions right now."}
-              </Text>
-              <Pressable onPress={() => void loadDashboard()}>
-                <Text style={styles.retryText}>Try again</Text>
+                <Text
+                  style={[
+                    styles.transactionAmount,
+                    transaction.type === "income"
+                      ? styles.transactionIncome
+                      : styles.transactionExpense,
+                  ]}
+                >
+                  {transaction.type === "income" ? "+" : "-"}{" "}
+                  {formatCurrency(transaction.amount, currencyCode)}
+                </Text>
               </Pressable>
-            </View>
-          ) : null}
+            )}
+            ListHeaderComponent={
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Transactions History</Text>
 
-          {status === "succeeded" && visibleTransactions.length === 0 ? (
-            <View style={styles.stateCard}>
-              <Text style={styles.stateTitle}>
-                {transactionFilter === "all"
-                  ? "No transactions yet"
-                  : `No ${transactionFilter} transactions`}
-              </Text>
-              <Text style={styles.stateText}>
-                {transactionFilter === "all"
-                  ? "Add your first transaction from the middle tab."
-                  : `Try switching filters or add a new ${transactionFilter} transaction.`}
-              </Text>
-            </View>
-          ) : null}
-
-          {visibleTransactions.map((transaction) => (
-            <Pressable
-              key={transaction.id}
-              style={styles.transactionRow}
-              onPress={() => router.push(`/transaction/${transaction.id}`)}
-            >
-              <View
-                style={[
-                  styles.transactionBadge,
-                  { backgroundColor: getTransactionBadgeColor(transaction.title) },
-                ]}
-              >
-                <Text style={styles.transactionBadgeText}>
-                  {getTransactionInitial(transaction.title)}
-                </Text>
+                <View style={styles.filterGroup}>
+                  <TransactionFilterChip
+                    label="All"
+                    isActive={transactionFilter === "all"}
+                    onPress={() => setTransactionFilter("all")}
+                  />
+                  <TransactionFilterChip
+                    label="Income"
+                    isActive={transactionFilter === "income"}
+                    onPress={() => setTransactionFilter("income")}
+                  />
+                  <TransactionFilterChip
+                    label="Expenses"
+                    isActive={transactionFilter === "expense"}
+                    onPress={() => setTransactionFilter("expense")}
+                  />
+                </View>
               </View>
-
-              <View style={styles.transactionInfo}>
-                <Text style={styles.transactionTitle}>{transaction.title}</Text>
-                <Text style={styles.transactionDate}>
-                  {formatTransactionDateLabel(transaction.date)}
-                </Text>
-              </View>
-
-              <Text
-                style={[
-                  styles.transactionAmount,
-                  transaction.type === "income"
-                    ? styles.transactionIncome
-                    : styles.transactionExpense,
-                ]}
-              >
-                {transaction.type === "income" ? "+" : "-"}{" "}
-                {formatCurrency(transaction.amount, currencyCode)}
-              </Text>
-            </Pressable>
-          ))}
-          </ScrollView>
+            }
+            ListEmptyComponent={
+              status === "loading" ? (
+                <View style={styles.stateCard}>
+                  <ActivityIndicator color={colors.primaryDark} />
+                  <Text style={styles.stateText}>Loading your dashboard...</Text>
+                </View>
+              ) : status === "failed" ? (
+                <View style={styles.stateCard}>
+                  <Text style={styles.stateTitle}>Dashboard unavailable</Text>
+                  <Text style={styles.stateText}>
+                    {error ?? "Unable to load your transactions right now."}
+                  </Text>
+                  <Pressable onPress={() => void loadDashboard()}>
+                    <Text style={styles.retryText}>Try again</Text>
+                  </Pressable>
+                </View>
+              ) : status === "succeeded" ? (
+                <View style={styles.stateCard}>
+                  <Text style={styles.stateTitle}>
+                    {transactionFilter === "all"
+                      ? "No transactions yet"
+                      : `No ${transactionFilter} transactions`}
+                  </Text>
+                  <Text style={styles.stateText}>
+                    {transactionFilter === "all"
+                      ? "Add your first transaction from the middle tab."
+                      : `Try switching filters or add a new ${transactionFilter} transaction.`}
+                  </Text>
+                </View>
+              ) : null
+            }
+          />
         </View>
       )}
     </HeroScreen>
