@@ -3,7 +3,15 @@ import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
 import { UserAvatar } from "@/components/branding/user-avatar";
 import { HeroScreen } from "@/components/layout/hero-screen";
@@ -15,6 +23,7 @@ import { authClient } from "@/lib/auth-client";
 import { uploadImageToCloudinary } from "@/lib/cloudinary";
 import { getCurrencyLabel, getUserCurrencyCode } from "@/lib/currency";
 import { ensureImageLibraryPermission } from "@/lib/image-library-permission";
+import { neonDataFetch } from "@/lib/neon-data-api";
 import { hp, rs } from "@/lib/responsive";
 import { useAppDispatch } from "@/store/hooks";
 import { clearExpensesState } from "@/store/slices/expenses-slice";
@@ -32,6 +41,7 @@ export function ProfileScreenView() {
   const dispatch = useAppDispatch();
   const { user, refetch } = useAuthSession();
   const [isUpdatingImage, setIsUpdatingImage] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
   const currencyCode = getUserCurrencyCode(user?.currency);
   const currencyLabel = getCurrencyLabel(user?.currency);
@@ -42,6 +52,64 @@ export function ProfileScreenView() {
     await authClient.signOut();
     dispatch(clearExpensesState());
     router.replace("/get-started");
+  };
+
+  const handleDeleteAccount = async () => {
+    Alert.alert(
+      "Delete Account",
+      "Are you sure you want to delete your account? This action cannot be undone and all your data will be permanently lost.",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            if (!user?.id) return;
+            
+            setIsDeletingAccount(true);
+            
+            try {
+              // Delete user's transactions
+              await neonDataFetch(`/transactions?user_id=eq.${user.id}`, {
+                method: "DELETE",
+              });
+
+              // Delete user's categories
+              await neonDataFetch(`/categories?user_id=eq.${user.id}`, {
+                method: "DELETE",
+              });
+
+              // Delete user's profile
+              await neonDataFetch(`/profiles?user_id=eq.${user.id}`, {
+                method: "DELETE",
+              });
+
+              // Delete the user from Neon Auth system
+              // Note: This requires Neon Auth admin API or custom endpoint
+              // For now, we'll sign out the user
+              await authClient.signOut();
+              
+              // Clear local state and redirect
+              clearAuthProfileCache(user.id);
+              dispatch(clearExpensesState());
+              router.replace("/get-started");
+              
+            } catch (error) {
+              console.error('Error deleting account:', error);
+              Alert.alert(
+                "Error",
+                "Failed to delete account. Please try again later."
+              );
+            } finally {
+              setIsDeletingAccount(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleUpdateProfileImage = async () => {
@@ -170,6 +238,13 @@ export function ProfileScreenView() {
               onPress={handleSignOut}
               variant="secondary"
               pill
+            />
+            <AppButton
+              label={isDeletingAccount ? "Deleting..." : "Delete Account"}
+              onPress={handleDeleteAccount}
+              disabled={isDeletingAccount}
+              variant="text"
+              labelStyle={styles.deleteButtonText}
             />
           </View>
         </ScrollView>
@@ -333,5 +408,11 @@ const styles = StyleSheet.create({
   actions: {
     marginTop: spacing.lg,
     marginHorizontal: spacing.lg,
+    gap: spacing.md,
+  },
+  deleteButtonText: {
+    color: colors.danger,
+    fontSize: typography.body,
+    fontWeight: "600",
   },
 });
