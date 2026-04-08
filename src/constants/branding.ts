@@ -1,5 +1,5 @@
 export const appBrand = {
-  name: "Spendora",
+  name: "Spenza",
   tagline: "Track every expense with clarity.",
   assets: {
     logoMark: require("../../assets/images/logo-img.webp"),

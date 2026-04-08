@@ -16,7 +16,18 @@ import { AppButton } from "@/components/ui/app-button";
 import { AppInput } from "@/components/ui/app-input";
 import { colors, radius, spacing, typography } from "@/constants/theme";
 import { AuthScreenShell } from "@/features/auth/components/auth-screen-shell";
-import { ensureAuthProfile } from "@/features/auth/lib/auth-profile";
+import {
+  clearAuthProfileCache,
+  ensureAuthProfile,
+  getAuthProfile,
+} from "@/features/auth/lib/auth-profile";
+import {
+  isExistingAccountError,
+  isInvalidCredentialsError,
+  mapAuthErrorMessage,
+  type AuthFieldErrors,
+  validateSignUpForm,
+} from "@/features/auth/lib/auth-form";
 import { authClient } from "@/lib/auth-client";
 import { uploadImageToCloudinary } from "@/lib/cloudinary";
 import { ensureImageLibraryPermission } from "@/lib/image-library-permission";
@@ -24,6 +35,7 @@ import { hp, rs } from "@/lib/responsive";
 
 type AuthResponseError = {
   message?: string;
+  status?: number;
 } | null;
 
 type SignUpResponse = {
@@ -39,6 +51,10 @@ type UpdateUserResponse = {
   error?: AuthResponseError;
 };
 
+type SessionUser = {
+  id: string;
+};
+
 export function SignUpScreenView() {
   const router = useRouter();
   const [name, setName] = useState("");
@@ -47,8 +63,140 @@ export function SignUpScreenView() {
   const [selectedImage, setSelectedImage] = useState<ImagePickerAsset | null>(
     null,
   );
+  const [fieldErrors, setFieldErrors] = useState<AuthFieldErrors>({});
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const getLatestSessionUser = async () => {
+    const latestSession = (await authClient.getSession()) as {
+      data?: {
+        user?: SessionUser | null;
+      } | null;
+    };
+
+    return latestSession.data?.user ?? null;
+  };
+
+  const syncRestoredAuthUser = async (updates: {
+    name?: string;
+    image?: string;
+  }) => {
+    if (Object.keys(updates).length === 0) {
+      return;
+    }
+
+    const updateUser = authClient.updateUser as (input: {
+      name?: string;
+      image?: string;
+    }) => Promise<UpdateUserResponse>;
+
+    const attemptSync = async () => updateUser(updates);
+
+    let response = await attemptSync();
+
+    if (response.error?.status === 401) {
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      response = await attemptSync();
+    }
+
+    if (response.error?.status === 401) {
+      return;
+    }
+
+    if (response.error) {
+      console.error(
+        "Deleted account restored, but syncing the auth profile failed.",
+        response.error,
+      );
+    }
+  };
+
+  const restoreDeletedAccount = async (
+    trimmedName: string,
+    trimmedEmail: string,
+    profileImageUrl?: string,
+  ) => {
+    const signInResponse = await authClient.signIn.email({
+      email: trimmedEmail,
+      password,
+      rememberMe: true,
+    });
+
+    if (signInResponse.error) {
+      if (isInvalidCredentialsError(signInResponse.error.message)) {
+        return {
+          restored: false,
+          error:
+            "This email is already registered. Use the original password to restore it, or log in instead.",
+        };
+      }
+
+      return {
+        restored: false,
+        error: mapAuthErrorMessage(signInResponse.error.message),
+      };
+    }
+
+    const signedInUser = await getLatestSessionUser();
+
+    if (!signedInUser) {
+      return {
+        restored: false,
+        error: "Your account was found, but the session could not be restored.",
+      };
+    }
+
+    const existingProfile = await getAuthProfile(signedInUser, { force: true });
+
+    if (existingProfile) {
+      clearAuthProfileCache(signedInUser.id);
+      await authClient.signOut();
+
+      return {
+        restored: false,
+        error: "An account with this email already exists. Log in instead.",
+      };
+    }
+
+    const nextUserUpdates: {
+      name?: string;
+      image?: string;
+    } = {};
+
+    if (trimmedName) {
+      nextUserUpdates.name = trimmedName;
+    }
+
+    if (profileImageUrl) {
+      nextUserUpdates.image = profileImageUrl;
+    }
+
+    await ensureAuthProfile(signedInUser, { force: true });
+    await syncRestoredAuthUser(nextUserUpdates);
+
+    return {
+      restored: true,
+      error: null,
+    };
+  };
+
+  const handleNameChange = (value: string) => {
+    setName(value);
+    setFieldErrors((current) => ({ ...current, name: undefined }));
+    setErrorMessage(null);
+  };
+
+  const handleEmailChange = (value: string) => {
+    setEmail(value);
+    setFieldErrors((current) => ({ ...current, email: undefined }));
+    setErrorMessage(null);
+  };
+
+  const handlePasswordChange = (value: string) => {
+    setPassword(value);
+    setFieldErrors((current) => ({ ...current, password: undefined }));
+    setErrorMessage(null);
+  };
 
   const handlePickImage = async () => {
     const hasPermission = await ensureImageLibraryPermission({
@@ -93,7 +241,16 @@ export function SignUpScreenView() {
       return;
     }
 
+    const nextFieldErrors = validateSignUpForm({ name, email, password });
+
+    if (Object.keys(nextFieldErrors).length > 0) {
+      setFieldErrors(nextFieldErrors);
+      setErrorMessage(null);
+      return;
+    }
+
     setIsSubmitting(true);
+    setFieldErrors({});
     setErrorMessage(null);
 
     try {
@@ -103,6 +260,9 @@ export function SignUpScreenView() {
         profileImageUrl = await uploadImageToCloudinary(selectedImage);
       }
 
+      const trimmedName = name.trim();
+      const trimmedEmail = email.trim();
+
       const response = await (
         authClient.signUp.email as (input: {
           name: string;
@@ -111,8 +271,8 @@ export function SignUpScreenView() {
           image?: string;
         }) => Promise<SignUpResponse>
       )({
-        name,
-        email,
+        name: trimmedName,
+        email: trimmedEmail,
         password,
         image: profileImageUrl,
       });
@@ -120,7 +280,24 @@ export function SignUpScreenView() {
       const { error } = response;
 
       if (error) {
-        setErrorMessage(error.message ?? "Unable to create account.");
+        if (isExistingAccountError(error.message)) {
+          const restoreResult = await restoreDeletedAccount(
+            trimmedName,
+            trimmedEmail,
+            profileImageUrl,
+          );
+
+          if (!restoreResult.restored) {
+            setErrorMessage(restoreResult.error);
+            setIsSubmitting(false);
+            return;
+          }
+
+          router.replace("/select-currency");
+          return;
+        }
+
+        setErrorMessage(mapAuthErrorMessage(error.message));
         setIsSubmitting(false);
         return;
       }
@@ -146,15 +323,7 @@ export function SignUpScreenView() {
         }
       }
 
-      const latestSession = (await authClient.getSession()) as {
-        data?: {
-          user?: {
-            id: string;
-          } | null;
-        } | null;
-      };
-
-      const signedInUser = latestSession.data?.user ?? null;
+      const signedInUser = await getLatestSessionUser();
 
       if (!signedInUser) {
         throw new Error("Account created, but the session could not be restored.");
@@ -164,9 +333,7 @@ export function SignUpScreenView() {
       router.replace("/select-currency");
     } catch (error) {
       setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Unable to create account right now.",
+        mapAuthErrorMessage(error instanceof Error ? error.message : null),
       );
       setIsSubmitting(false);
     }
@@ -175,7 +342,7 @@ export function SignUpScreenView() {
   return (
     <AuthScreenShell
       backHref="/get-started"
-      heroMinHeight={hp(40)}
+      heroMinHeight={hp(37)}
       heroContent={
         <View style={styles.heroAvatarWrap}>
           <Pressable onPress={handlePickImage} style={styles.heroAvatarPicker}>
@@ -213,29 +380,34 @@ export function SignUpScreenView() {
         </View>
       }
     >
-      <Text style={styles.title}>Join Spendora</Text>
+      <Text style={styles.title}>Join Spenza</Text>
 
       <View style={styles.form}>
         <AppInput
           label="Full Name"
           value={name}
-          onChangeText={setName}
+          onChangeText={handleNameChange}
           placeholder="Jane Doe"
+          autoCorrect={false}
+          error={fieldErrors.name}
         />
         <AppInput
           label="Email"
           value={email}
-          onChangeText={setEmail}
+          onChangeText={handleEmailChange}
           placeholder="jane@example.com"
           keyboardType="email-address"
           autoCapitalize="none"
+          autoCorrect={false}
+          error={fieldErrors.email}
         />
         <AppInput
           label="Password"
           value={password}
-          onChangeText={setPassword}
+          onChangeText={handlePasswordChange}
           placeholder="Choose a password"
           secureTextEntry
+          error={fieldErrors.password}
         />
       </View>
 

@@ -46,7 +46,7 @@ if (process.env.NODE_ENV === "development") {
 
 export const auth = betterAuth({
   baseURL,
-  appName: "Spendora",
+  appName: "Spenza",
   database: drizzleAdapter(db, {
     provider: "pg",
     schema,

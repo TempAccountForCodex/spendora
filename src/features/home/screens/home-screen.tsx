@@ -12,15 +12,18 @@ import {
   View,
 } from "react-native";
 
-import { HeroScreen } from "@/components/layout/hero-screen";
 import { UserAvatar } from "@/components/branding/user-avatar";
+import { HeroScreen } from "@/components/layout/hero-screen";
 import { colors, gradients, radius, spacing, typography } from "@/constants/theme";
+import { clearAuthProfileCache } from "@/features/auth/lib/auth-profile";
 import { useAuthSession } from "@/features/auth/lib/use-auth-session";
 import { fetchDashboard } from "@/features/home/lib/fetch-dashboard";
+import { authClient } from "@/lib/auth-client";
 import { formatCurrency, getUserCurrencyCode } from "@/lib/currency";
 import { hp, rs, wp } from "@/lib/responsive";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
+  clearExpensesState,
   dashboardReceived,
   dashboardRequested,
   dashboardRequestFailed,
@@ -156,6 +159,13 @@ export function HomeScreenView() {
     }, [loadDashboard, status]),
   );
 
+  const handleSignOut = useCallback(async () => {
+    clearAuthProfileCache(user?.id);
+    await authClient.signOut();
+    dispatch(clearExpensesState());
+    router.replace("/get-started");
+  }, [dispatch, router, user?.id]);
+
   return (
     <HeroScreen>
       {(topInset) => (
@@ -181,14 +191,16 @@ export function HomeScreenView() {
               <View style={styles.greetingBlock}>
                 <Text style={styles.greeting}>{greeting}</Text>
                 <Text style={styles.userName} numberOfLines={1}>
-                  {user?.name ?? "Spendora User"}
+                  {user?.name ?? "Spenza User"}
                 </Text>
               </View>
             </View>
 
-            <Pressable style={styles.notificationButton}>
-              <Feather name="bell" size={rs(18)} color={colors.white} />
-              <View style={styles.notificationDot} />
+            <Pressable
+              style={styles.notificationButton}
+              onPress={() => void handleSignOut()}
+            >
+              <Feather name="log-out" size={rs(18)} color={colors.white} />
             </Pressable>
           </View>
 
@@ -439,15 +451,6 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.12)",
     alignItems: "center",
     justifyContent: "center",
-  },
-  notificationDot: {
-    position: "absolute",
-    top: rs(11),
-    right: rs(11),
-    width: rs(8),
-    height: rs(8),
-    borderRadius: radius.pill,
-    backgroundColor: "#FFB45B",
   },
   balanceCard: {
     marginTop: spacing.sm,

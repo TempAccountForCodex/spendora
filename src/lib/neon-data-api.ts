@@ -8,6 +8,7 @@ type NeonDataApiOptions = {
   body?: unknown;
   headers?: HeadersInit;
   timeoutMs?: number;
+  authToken?: string;
 };
 
 type ErrorPayload = {
@@ -21,7 +22,7 @@ export async function neonDataFetch<T>(
   path: string,
   options: NeonDataApiOptions = {},
 ) {
-  const token = await getNeonAuthToken();
+  const token = options.authToken ?? (await getNeonAuthToken());
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), options.timeoutMs ?? 12000);
 

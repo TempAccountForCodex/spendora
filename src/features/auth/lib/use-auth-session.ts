@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
   clearAuthProfileCache,
-  ensureAuthProfile,
+  getAuthProfile,
   getProfileCurrencyValue,
   type AuthProfile,
 } from "@/features/auth/lib/auth-profile";
@@ -23,6 +23,9 @@ export function useAuthSession() {
   const sessionState = authClient.useSession();
   const baseUser = (sessionState.data?.user ?? null) as SessionUser | null;
   const [profile, setProfile] = useState<AuthProfile | null>(null);
+  const [resolvedProfileUserId, setResolvedProfileUserId] = useState<string | null>(
+    null,
+  );
   const [profileError, setProfileError] = useState<Error | null>(null);
   const [isProfilePending, setIsProfilePending] = useState(false);
 
@@ -31,6 +34,7 @@ export function useAuthSession() {
 
     if (!baseUser) {
       setProfile(null);
+      setResolvedProfileUserId(null);
       setProfileError(null);
       setIsProfilePending(false);
       return;
@@ -39,15 +43,31 @@ export function useAuthSession() {
     setIsProfilePending(true);
     setProfileError(null);
 
-    void ensureAuthProfile(baseUser)
+    void getAuthProfile(baseUser, { force: true })
       .then((nextProfile) => {
+        if (!nextProfile) {
+          clearAuthProfileCache(baseUser.id);
+
+          if (!isCancelled) {
+            setProfile(null);
+            setResolvedProfileUserId(baseUser.id);
+            setProfileError(null);
+            setIsProfilePending(false);
+          }
+
+          return;
+        }
+
         if (!isCancelled) {
           setProfile(nextProfile);
+          setResolvedProfileUserId(baseUser.id);
           setIsProfilePending(false);
         }
       })
       .catch((error) => {
         if (!isCancelled) {
+          setProfile(null);
+          setResolvedProfileUserId(baseUser.id);
           setProfileError(
             error instanceof Error
               ? error
@@ -76,17 +96,35 @@ export function useAuthSession() {
     if (!latestUser) {
       clearAuthProfileCache();
       setProfile(null);
+      setResolvedProfileUserId(null);
       setProfileError(null);
       return;
     }
 
-    const refreshedProfile = await ensureAuthProfile(latestUser, { force: true });
+    const refreshedProfile = await getAuthProfile(latestUser, { force: true });
+
+    if (!refreshedProfile) {
+      clearAuthProfileCache(latestUser.id);
+      setProfile(null);
+      setResolvedProfileUserId(latestUser.id);
+      setProfileError(null);
+      return;
+    }
+
     setProfile(refreshedProfile);
+    setResolvedProfileUserId(latestUser.id);
     setProfileError(null);
   }, [sessionState]);
 
+  const hasResolvedCurrentProfile =
+    !baseUser || resolvedProfileUserId === baseUser.id;
+
   const mergedUser = useMemo<AuthenticatedAppUser | null>(() => {
-    if (!baseUser) {
+    if (
+      !baseUser ||
+      !profile ||
+      resolvedProfileUserId !== baseUser.id
+    ) {
       return null;
     }
 
@@ -94,13 +132,15 @@ export function useAuthSession() {
       ...baseUser,
       currency: getProfileCurrencyValue(profile),
     };
-  }, [baseUser, profile]);
+  }, [baseUser, profile, resolvedProfileUserId]);
 
   return {
     session: sessionState.data?.session ?? null,
     user: mergedUser,
-    isSignedIn: Boolean(sessionState.data?.session),
-    isPending: sessionState.isPending || (Boolean(baseUser) && isProfilePending),
+    isSignedIn: Boolean(sessionState.data?.session) && Boolean(mergedUser),
+    isPending:
+      sessionState.isPending ||
+      (Boolean(baseUser) && (!hasResolvedCurrentProfile || isProfilePending)),
     isRefetching: sessionState.isRefetching,
     error: sessionState.error ?? profileError,
     refetch,

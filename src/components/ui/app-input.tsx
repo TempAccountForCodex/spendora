@@ -11,9 +11,10 @@ import {
 
 type AppInputProps = ComponentProps<typeof TextInput> & {
   label: string;
+  error?: string | null;
 };
 
-export function AppInput({ label, ...props }: AppInputProps) {
+export function AppInput({ label, error, ...props }: AppInputProps) {
   const { style, ...inputProps } = props;
 
   return (
@@ -21,9 +22,10 @@ export function AppInput({ label, ...props }: AppInputProps) {
       <Text style={styles.label}>{label}</Text>
       <TextInput
         placeholderTextColor={colors.textPlaceholder}
-        style={[styles.input, style]}
+        style={[styles.input, error ? styles.inputError : null, style]}
         {...inputProps}
       />
+      {error ? <Text style={styles.error}>{error}</Text> : null}
     </View>
   );
 }
@@ -46,5 +48,13 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     color: colors.text,
     fontSize: typography.body,
+  },
+  inputError: {
+    borderColor: colors.danger,
+  },
+  error: {
+    fontSize: typography.caption,
+    lineHeight: typography.captionLineHeight,
+    color: colors.danger,
   },
 });

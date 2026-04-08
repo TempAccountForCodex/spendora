@@ -23,6 +23,7 @@ import { authClient } from "@/lib/auth-client";
 import { uploadImageToCloudinary } from "@/lib/cloudinary";
 import { getCurrencyLabel, getUserCurrencyCode } from "@/lib/currency";
 import { ensureImageLibraryPermission } from "@/lib/image-library-permission";
+import { getNeonAuthToken } from "@/lib/neon-auth-token";
 import { neonDataFetch } from "@/lib/neon-data-api";
 import { hp, rs } from "@/lib/responsive";
 import { useAppDispatch } from "@/store/hooks";
@@ -30,10 +31,46 @@ import { clearExpensesState } from "@/store/slices/expenses-slice";
 
 function buildHandle(name: string | null | undefined) {
   if (!name) {
-    return "@spendora_user";
+    return "@spenza_user";
   }
 
   return `@${name.trim().toLowerCase().replace(/\s+/g, "_")}`;
+}
+
+function getDeleteAccountErrorMessage(error: unknown) {
+  if (!(error instanceof Error)) {
+    return "Failed to delete account. Please try again later.";
+  }
+
+  return error.message || "Failed to delete account. Please try again later.";
+}
+
+async function deleteAccountData(userId: string, authToken: string) {
+  const encodedUserId = encodeURIComponent(userId);
+
+  await neonDataFetch(`/transactions?user_id=eq.${encodedUserId}`, {
+    method: "DELETE",
+    authToken,
+    headers: {
+      Prefer: "return=minimal",
+    },
+  });
+
+  await neonDataFetch(`/categories?user_id=eq.${encodedUserId}`, {
+    method: "DELETE",
+    authToken,
+    headers: {
+      Prefer: "return=minimal",
+    },
+  });
+
+  await neonDataFetch(`/profiles?user_id=eq.${encodedUserId}`, {
+    method: "DELETE",
+    authToken,
+    headers: {
+      Prefer: "return=minimal",
+    },
+  });
 }
 
 export function ProfileScreenView() {
@@ -68,40 +105,22 @@ export function ProfileScreenView() {
           style: "destructive",
           onPress: async () => {
             if (!user?.id) return;
-            
+
             setIsDeletingAccount(true);
-            
+
             try {
-              // Delete user's transactions
-              await neonDataFetch(`/transactions?user_id=eq.${user.id}`, {
-                method: "DELETE",
-              });
+              const authToken = await getNeonAuthToken();
+              await deleteAccountData(user.id, authToken);
 
-              // Delete user's categories
-              await neonDataFetch(`/categories?user_id=eq.${user.id}`, {
-                method: "DELETE",
-              });
-
-              // Delete user's profile
-              await neonDataFetch(`/profiles?user_id=eq.${user.id}`, {
-                method: "DELETE",
-              });
-
-              // Delete the user from Neon Auth system
-              // Note: This requires Neon Auth admin API or custom endpoint
-              // For now, we'll sign out the user
-              await authClient.signOut();
-              
-              // Clear local state and redirect
               clearAuthProfileCache(user.id);
+              await authClient.signOut();
               dispatch(clearExpensesState());
               router.replace("/get-started");
-              
             } catch (error) {
-              console.error('Error deleting account:', error);
+              console.error("Error deleting account:", error);
               Alert.alert(
                 "Error",
-                "Failed to delete account. Please try again later."
+                getDeleteAccountErrorMessage(error),
               );
             } finally {
               setIsDeletingAccount(false);
@@ -204,7 +223,7 @@ export function ProfileScreenView() {
                   )}
                 </View>
               </Pressable>
-              <Text style={styles.heroTitle}>{user?.name ?? "Spendora User"}</Text>
+              <Text style={styles.heroTitle}>{user?.name ?? "Spenza User"}</Text>
               <Text style={styles.heroSubtitle}>{handle}</Text>
               {/* <Text style={styles.heroHint}>
                 {isUpdatingImage ? "Updating photo..." : "Tap photo to update"}

@@ -19,7 +19,7 @@ type ProfileRow = {
 };
 
 const profileCache = new Map<string, AuthProfile>();
-const inflightProfiles = new Map<string, Promise<AuthProfile>>();
+const inflightProfiles = new Map<string, Promise<AuthProfile | null>>();
 
 function normalizeProfile(row: ProfileRow): AuthProfile {
   return {
@@ -69,7 +69,7 @@ export function clearAuthProfileCache(userId?: string) {
   inflightProfiles.clear();
 }
 
-export async function ensureAuthProfile(
+export async function getAuthProfile(
   user: BaseSessionUser,
   options: { force?: boolean } = {},
 ) {
@@ -91,9 +91,8 @@ export async function ensureAuthProfile(
       return existingProfile;
     }
 
-    const createdProfile = await insertProfile(user.id);
-    profileCache.set(user.id, createdProfile);
-    return createdProfile;
+    profileCache.delete(user.id);
+    return null;
   })();
 
   inflightProfiles.set(user.id, request);
@@ -103,6 +102,21 @@ export async function ensureAuthProfile(
   } finally {
     inflightProfiles.delete(user.id);
   }
+}
+
+export async function ensureAuthProfile(
+  user: BaseSessionUser,
+  options: { force?: boolean } = {},
+) {
+  const existingProfile = await getAuthProfile(user, options);
+
+  if (existingProfile) {
+    return existingProfile;
+  }
+
+  const createdProfile = await insertProfile(user.id);
+  profileCache.set(user.id, createdProfile);
+  return createdProfile;
 }
 
 export async function saveAuthProfileCurrency(

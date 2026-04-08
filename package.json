@@ -1,5 +1,5 @@
 {
-  "name": "spendora",
+  "name": "spenza",
   "main": "expo-router/entry",
   "version": "1.0.0",
   "scripts": {
@@ -7,7 +7,7 @@
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo start --android --go",
     "android:dev": "expo start --android --dev-client",
-    "ios": "expo start --ios",
+    "ios": "expo run:ios",
     "web": "expo start --web",
     "auth:generate": "npx auth@latest generate --config src/lib/auth.ts --output src/db/schema/auth-schema.ts --yes",
     "db:generate": "drizzle-kit generate",
